@@ -25,3 +25,8 @@ class AlertModel: ObservableObject {
     @Published var alertMessage = ""
 }
 
+class CourseModel:ObservableObject {
+    @Published var course_id = false
+    @Published var course_title = ""
+}
+

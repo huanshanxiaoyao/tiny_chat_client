@@ -23,7 +23,8 @@ struct ConfirmationDialogModifier: ViewModifier {
                     primaryButton: .default(Text("Yes"), action: {
                         // 用户点击了 Yes，发送确认请求
                         let parameters = ["title": confirmationModel.currentTitle,
-                                          "ssid": confirmationModel.currentSSID]
+                                          "ssid": confirmationModel.currentSSID,
+                                          "userID": UserModel.shared.userID]
                         postRequest("\(Config.baseURL)/confirm", parameters) { result in
                             switch result {
                             case .success(let response):

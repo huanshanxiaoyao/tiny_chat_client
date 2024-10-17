@@ -9,13 +9,8 @@ struct ContentView: View {
     @StateObject private var chatManager: ChatManager
  
     init() {
-           // 初始化 `ChatManager`，并传递 `postRequest` 函数
-           let postRequest: (String, [String: Any], @escaping (Result<[String: Any], Error>) -> Void) -> Void = { url, parameters, completion in
-               // 这里实现 postRequest 函数的逻辑，或者保持原样
-           }
            _chatManager = StateObject(wrappedValue: ChatManager(postRequest: postRequest))
        }
-    
     
     var body: some View {
         
