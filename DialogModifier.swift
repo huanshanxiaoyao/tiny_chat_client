@@ -29,7 +29,7 @@ struct ConfirmationDialogModifier: ViewModifier {
                             switch result {
                             case .success(let response):
                                 DispatchQueue.main.async {
-                                    let botMessage = Message(content: "确认成功：\(response)", isUser: false)
+                                    let botMessage = Message(content: "确认成功, 将为你准备教案：\(response)", isUser: false)
                                     messages.append(botMessage)
                                 }
                             case .failure(let error):

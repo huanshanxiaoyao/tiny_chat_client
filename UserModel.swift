@@ -15,7 +15,7 @@ class UserModel: ObservableObject {
 
     private init() {
         // 删除之前保存的用户标识符（确保生成新的）
-               UserDefaults.standard.removeObject(forKey: "userID")
+        //       UserDefaults.standard.removeObject(forKey: "userID")
         
         if let savedUserID = UserDefaults.standard.string(forKey: "userID") {
             // 如果用户标识符已存在，从存储中读取
