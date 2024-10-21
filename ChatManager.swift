@@ -6,16 +6,15 @@ class ChatManager: ObservableObject {
     @Published var alertModel = AlertModel()
     @Published var confirmationModel = ConfirmationModel()
     
-    var courseDataManager: CourseDataManager
+    var courseDataManager: CourseDataManager?
+    var studyManager: StudyManager?
 
     var postRequest: (String, [String: Any], @escaping (Result<[String: Any], Error>) -> Void) -> Void
     private var timer: AnyCancellable?
    
 
-    init(postRequest: @escaping (String, [String: Any], @escaping (Result<[String: Any], Error>) -> Void) -> Void,
-            courseDataManager: CourseDataManager) {
+    init(postRequest: @escaping (String, [String: Any], @escaping (Result<[String: Any], Error>) -> Void) -> Void) {
         self.postRequest = postRequest
-        self.courseDataManager = courseDataManager
         startPolling()
     }
     
@@ -43,6 +42,12 @@ class ChatManager: ObservableObject {
     }
 
     private func handleResponse(_ response: [String: Any]) {
+        guard let courseDataManager = self.courseDataManager else {
+            self.alertModel.alertMessage = "CourseDataManager 未设置。"
+            self.alertModel.showAlert = true
+            return
+        }
+        
         if let needConfirm = response["need_confirm"] as? Bool,
            let confirmStr = response["confirm_str"] as? String,
            let title = response["title"] as? String,
@@ -64,6 +69,7 @@ class ChatManager: ObservableObject {
     }
 
     func startPolling() {
+        guard courseDataManager != nil else { return }
         timer = Timer.publish(every: 5.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -77,6 +83,8 @@ class ChatManager: ObservableObject {
     }
     
     private func checkForNewMessages() {
+        guard let courseDataManager = self.courseDataManager else { return }
+        
         let url = "\(Config.baseURL)/check"
         let parameters = ["userID": UserModel.shared.userID]
         postRequest(url, parameters) { result in
@@ -118,17 +126,56 @@ class ChatManager: ObservableObject {
                                 
                                 // 使用 CourseDataManager 保存新课程
                                 DispatchQueue.main.async {
-                                    self.courseDataManager.addOrUpdateCourse(id: courseId, title: courseTitle, outlineContent: outlineItems)
+                                    courseDataManager.addOrUpdateCourse(id: courseId, title: courseTitle, outlineContent: outlineItems)
                                 }
 
                                 // 在消息中追加一条关于 outline_content 的消息（可选）
                                 let outlineMessage = Message(content: outlineContent, isUser: false)
                                 self.messages.append(outlineMessage)
                             }
-
+                // 如果成功保存课程数据，弹出确认框询问用户是否开始学习
+                if let courseTitle = response["course_title"] as? String,
+                   let courseId = response["course_id"] as? Int {
+                    DispatchQueue.main.async {
+                        let alert = UIAlertController(title: "开始学习", message: "是否开始学习 \(courseTitle) 的第1节？", preferredStyle: .alert)
+                        alert.addAction(UIAlertAction(title: "确定", style: .default) { _ in
+                            // 用户确认后，发送学习请求
+                            self.startStudy(courseId: courseId, outlineItemId: 0)
+                        })
+                        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+                        
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let rootViewController = windowScene.windows.first?.rootViewController {
+                            rootViewController.present(alert, animated: true)
+                        }
+                    }
+                }
                 case .failure(let error):
                     print("检查新消息时出错: \(error.localizedDescription)")
                 }
+            }
+        }
+    }
+
+    func startStudy(courseId: Int, outlineItemId: Int) {
+        guard let studyManager = self.studyManager else {
+            self.alertModel.alertMessage = "StudyManager 未设置。"
+            self.alertModel.showAlert = true
+            return
+        }
+        
+        studyManager.startStudy(courseId: courseId, outlineItemId: outlineItemId) { [weak self] result in
+            guard let self = self else { return }
+            
+            switch result {
+            case .success(let content):
+                // 添加消息到对话列表
+                let botMessage = Message(content: content, isUser: false)
+                self.messages.append(botMessage)
+                self.objectWillChange.send()
+            case .failure(let error):
+                self.alertModel.alertMessage = "学习请求失败: \(error.localizedDescription)"
+                self.alertModel.showAlert = true
             }
         }
     }

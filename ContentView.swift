@@ -5,11 +5,20 @@ import AVFoundation
 // 主视图，包含 TabView
 struct ContentView: View {
  
-    @StateObject private var courseDataManager = CourseDataManager()
+    @StateObject private var courseDataManager: CourseDataManager
+    @StateObject private var studyManager: StudyManager
+    
+    
+    init() {
+        let courseDataManager = CourseDataManager()
+        _courseDataManager = StateObject(wrappedValue: courseDataManager)
+        _studyManager = StateObject(wrappedValue: StudyManager(courseDataManager: courseDataManager))
+    }
+
     
     var body: some View {
         TabView {
-            ChatView(courseDataManager: courseDataManager)
+            ChatView()
                 .tabItem {
                     Image(systemName: "message")
                     Text("聊天")
@@ -21,19 +30,25 @@ struct ContentView: View {
                 }
         }
         .environmentObject(courseDataManager) // 注入 CourseDataManager
+        .environmentObject(studyManager) // 注入 StudyManager
     }
 }
 
 // 聊天视图
 struct ChatView: View {
     @State private var inputText: String = ""
+    @FocusState private var isInputActive: Bool
     @StateObject private var speechManager = SpeechRecognizerManager()
+
     @StateObject private var chatManager: ChatManager
+    
     @EnvironmentObject var courseDataManager: CourseDataManager
     
-    init(courseDataManager: CourseDataManager) {
+    @EnvironmentObject var studyManager: StudyManager
+    
+    init() {
          // 使用 courseDataManager 初始化 chatManager
-         _chatManager = StateObject(wrappedValue: ChatManager(postRequest: postRequest, courseDataManager: courseDataManager))
+         _chatManager = StateObject(wrappedValue: ChatManager(postRequest: postRequest))
      }
     
     var body: some View {
@@ -43,24 +58,29 @@ struct ChatView: View {
                 .padding()
 
             MessageListView(messages: chatManager.messages)
+                .onTapGesture {
+                    isInputActive = false // 点击消息列表区域收起键盘
+                }
 
             Divider()
-
-    
         }
+        .onAppear {
+                   chatManager.courseDataManager = courseDataManager
+                   chatManager.studyManager = studyManager
+                   chatManager.startPolling()
+               }
         .safeAreaInset(edge: .bottom) {
             InputBar(inputText: $inputText, sendAction: {
                 chatManager.sendMessage(inputText: inputText)
-                inputText = ""},
+                inputText = ""
+            },
                      recordAction: speechManager.startRecording,
-                     isRecording: $speechManager.isRecording)
+                     isRecording: $speechManager.isRecording,
+                     isInputActive: $isInputActive)
             .padding()
             .background(Color(.systemBackground))
+            .focused($isInputActive)
         }
-        .onAppear {
-                   // 更新 chatManager 的 courseDataManager 为环境中的实例
-                   chatManager.courseDataManager = courseDataManager
-               }
         .alert(isPresented: $chatManager.alertModel.showAlert) {
             Alert(title: Text("错误"), message: Text(chatManager.alertModel.alertMessage), dismissButton: .default(Text("确定")))
         }
@@ -133,11 +153,13 @@ struct ChatView: View {
         var sendAction: () -> Void
         var recordAction: () -> Void
         @Binding var isRecording: Bool
+        @FocusState.Binding var isInputActive: Bool
 
         var body: some View {
             HStack {
                 TextField("请输入消息", text: $inputText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .focused($isInputActive)
                 Button(action: sendAction) {
                     Image(systemName: "paperplane.fill")
                         .rotationEffect(.degrees(45))
@@ -152,6 +174,4 @@ struct ChatView: View {
         }
     }
 }
-
-
 
