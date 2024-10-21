@@ -27,7 +27,7 @@ struct Course: Identifiable, Codable {
 
 class CourseViewModel: ObservableObject {
     @Published var course: Course
-    @Published var outlineItems: [OutlineItem]
+    var outlineItems: [OutlineItem]
     @Published var selectedOutlineItem: OutlineItem?
     @Published var alertModel = AlertModel()
     @Published var isLoading = false
@@ -62,8 +62,9 @@ class CourseViewModel: ObservableObject {
             switch result {
             case .success(let content):
                 if let index = self.course.outline.firstIndex(where: { $0.id == outlineItemId }) {
-                    self.course.outline[index].detailContent = content
-                    self.course.outline[index].status = 1 // 更新状态为"正在学习"
+                    self.outlineItems[index].detailContent = content
+                    self.outlineItems[index].status = 1
+                  
                     self.objectWillChange.send()
                 }
             case .failure(let error):
