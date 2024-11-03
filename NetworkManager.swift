@@ -1,10 +1,3 @@
-//
-//  NetworkManager.swift
-//  AIChatClient2
-//
-//  Created by 苏冲 on 2024/10/16.
-//
-
 import Foundation
 
 // 定义一个全局的网络请求函数
@@ -27,8 +20,11 @@ func postRequest(urlString: String, parameters: [String: Any], completion: @esca
         return
     }
     
+    // 创建一个自定义的 URLSession，使用自定义的 URLSessionDelegate
+    let session = URLSession(configuration: .default, delegate: MyURLSessionDelegate(), delegateQueue: nil)
+    
     // 执行网络请求
-    URLSession.shared.dataTask(with: request) { data, response, error in
+    session.dataTask(with: request) { data, response, error in
         // 检查是否有错误
         if let error = error {
             completion(.failure(error))
@@ -60,5 +56,18 @@ func postRequest(urlString: String, parameters: [String: Any], completion: @esca
             completion(.failure(error))
         }
     }.resume()
+}
+
+// 自定义 URLSessionDelegate 来信任自签名证书
+class MyURLSessionDelegate: NSObject, URLSessionDelegate {
+    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        if let serverTrust = challenge.protectionSpace.serverTrust {
+            // 使用服务器的信任对象来创建一个 URL 凭证
+            let credential = URLCredential(trust: serverTrust)
+            completionHandler(.useCredential, credential)
+        } else {
+            completionHandler(.cancelAuthenticationChallenge, nil)
+        }
+    }
 }
 

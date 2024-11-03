@@ -114,8 +114,48 @@ class CourseDataManager: ObservableObject {
                     print("加载课程数据失败: \(error)")
                 }
             } else {
-                DispatchQueue.main.async {
-                    self.courses = []
+                // 从服务器获取课程列表
+                let url = "\(Config.baseURL)/courselist"
+                let parameters: [String: Any] = [
+                    "userID": UserModel.shared.userID
+                ]
+                print("courselist url: \(url)")
+                postRequest(urlString: url, parameters: parameters) { [weak self] result in
+                    guard let self = self else { return }
+                    
+                    switch result {
+                    case .success(let response):
+                        if let coursesData = response["data"] as? [[String: Any]] {
+                            let courses = coursesData.compactMap { courseDict -> Course? in
+                                guard let id = courseDict["courseID"] as? Int,
+                                      let title = courseDict["title"] as? String,
+                                      let chapters = courseDict["chapters"] as? [[String: Any]] else {
+                                    return nil
+                                }
+                                
+                                let outlineItems = chapters.enumerated().compactMap { (index, chapter) -> OutlineItem? in
+                                    guard let title = chapter["title"] as? String,
+                                          let content = chapter["content"] as? String,
+                                          let status = chapter["status"] as? Int else {
+                                        return nil
+                                    }
+                                    return OutlineItem(id: index, subTitle: title, content: content, status: status)
+                                }
+                                
+                                return Course(id: id, title: title, outline: outlineItems)
+                            }
+                            
+                            DispatchQueue.main.async {
+                                self.courses = courses
+                                self.saveCourses() // 保存到本地
+                            }
+                        }
+                    case .failure(let error):
+                        print("获取课程列表失败: \(error.localizedDescription)")
+                        DispatchQueue.main.async {
+                            self.courses = []
+                        }
+                    }
                 }
             }
         }
@@ -149,9 +189,26 @@ class CourseDataManager: ObservableObject {
     
     // 删除课程
     func deleteCourse(course: Course) {
+        // 本地删除
         if let index = courses.firstIndex(where: { $0.id == course.id }) {
             courses.remove(at: index)
             saveCourses()
+            
+            // 发送服务器删除请求
+            let url = "\(Config.baseURL)/delete"
+            let parameters: [String: Any] = [
+                "userID": UserModel.shared.userID,
+                "courseID": course.id
+            ]
+            
+            postRequest(urlString: url, parameters: parameters){ result in
+                switch result {
+                case .success(_):
+                    print("课程在服务器端删除成功")
+                case .failure(let error):
+                    print("删除课程请求失败: \(error.localizedDescription)")
+                }
+            }
         }
     }
 }
